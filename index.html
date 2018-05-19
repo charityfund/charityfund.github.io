@@ -8,11 +8,11 @@
     <script src="lib/nebPay.js"></script>
     <script src="lib/nebulas.js"></script>
     <script>
-      var dappAddress = 'n1oD22mUEzsfaZv48vkdQc23eU23qE7TNgQ',
+      var dappAddress = 'n1gTZcDvDhCK8gmpEdmZY4Scxygoi9BJ7Km',
         nebulas = require('nebulas'),
         Account = nebulas.Account;
         neb = new nebulas.Neb();
-      neb.setRequest(new nebulas.HttpRequest('http://127.0.0.1:8685'));
+      neb.setRequest(new nebulas.HttpRequest('https://mainnet.nebulas.io'));
 
       var NebPay = require('nebpay'),
         nebPay = new NebPay();
