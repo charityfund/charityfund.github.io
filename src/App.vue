@@ -8,12 +8,14 @@
         <section class="section section_left">
           <h2 class="h2_left">添加善款</h2>
           <div class="content_wrap">
-            <input type="text" v-model="fundAddId" placeholder="善款id">
             <input type="text" v-model="fundTotal" placeholder="总金额（单位：元）" onkeyup="value=value.replace(/[^\d]/g,'')">
             <input type="text" v-model="fundDes" placeholder="善款描述">
             <button class="display_b" @click="addFund" :class="{'noCanAdd': noCanAdd}">
-              <span v-if="noCanAdd">上方数据填写完整可以添加</span>
-              <span v-else>添加</span>
+              <span v-if="noCanAdd">
+                <span>上方数据填写完整可以添加</span>
+              </span>
+              <span v-else-if="uploading">数据上传中...请稍候</span>
+              <span v-else>添加去向</span>
             </button>
           </div>
         </section>
@@ -36,7 +38,10 @@
             <input type="text" v-model="insertFundWhere" placeholder="去向说明">
             <input type="text" v-model="insertWhereAmt" onkeyup="value=value.replace(/[^\d]/g,'')" placeholder="去向金额">
             <button class="display_b" @click="insertWhere" :class="{'noCanInsert': noCanInsert}">
-              <span v-if="noCanInsert">上方数据填写完整可以添加去向</span>
+              <span v-if="noCanInsert">
+                <span>上方数据填写完整可以添加去向</span>
+              </span>
+              <span v-else-if="uploading">数据更新中...请稍候</span>
               <span v-else>添加去向</span>
             </button>
           </div>
@@ -70,12 +75,13 @@ export default {
       // 当前查询出来的id
       nowFundId: '',
       insertFundWhere: '',
-      insertWhereAmt: ''
+      insertWhereAmt: '',
+      uploading: false
     }
   },
   computed: {
     noCanAdd() {
-      if(this.fundAddId != '' && this.fundTotal != '' && this.fundDes != '') {
+      if(this.fundTotal != '' && this.fundDes != '') {
         return false
       } else {
         return true
@@ -99,9 +105,9 @@ export default {
   methods: {
     addFund() {
       if(this.noCanAdd) return
-
+      this.fundAddId = Number(Math.random().toString().substr(3,0) + Date.now()).toString(36)
       let callArgs = '["add","' + this.fundAddId + '", "' + this.fundTotal + '","' + this.fundDes + '","zhanwei","zhanwei"]'
-      saveFun(callArgs);
+      saveFun(callArgs, this, 'add');
     },
     findFund() {
       if(this.noCanFind) return
@@ -137,47 +143,57 @@ export default {
 
       if(sum < now) {
         alert('剩余金额不足此次支出去向金额')
+        return
       }
 
       let callArgs = '["insert","' + this.nowFundId + '", "zhanwei","zhanwei","' + this.insertFundWhere + '","' + this.insertWhereAmt + '"]'
-      saveFun(callArgs);
+      saveFun(callArgs, this, 'update');
     }
   },
   mounted() {
+    window._this = this;
     initChart(this)
   }
 }
 
-function saveFun(callArgs) {
+function saveFun(callArgs, _this, type) {
+  _this.uploading = true
   let to = dappAddress,
     value = "0",
     callFunction = "save";
 
-  window.serialNumber = nebPay.call(to, value, callFunction, callArgs, {
+  window.type = type
+
+  nebPay.call(to, value, callFunction, callArgs, {
     listener: cbPush
   });
 
-  window.intervalQuery = setInterval(function () {
-    funcIntervalQuery();
-  }, 1500);
 }
 
 function cbPush(resp) {
-  console.log("response of push: " + JSON.stringify(resp))
+  window.intervalQuery = setInterval(function () {
+    funcIntervalQuery(resp);
+  }, 5000);
+  
 }
 
-function funcIntervalQuery() {
-  nebPay.queryPayInfo(window.serialNumber)
-    .then(function (resp) {
-      var respObject = JSON.parse(resp)
-      if (respObject.code === 0) {
-        alert('添加成功');
-        clearInterval(window.intervalQuery)
+function funcIntervalQuery(resp) {
+  window._this.$http.post('https://mainnet.nebulas.io/v1/user/getTransactionReceipt', {
+    hash: resp.txhash
+  }).then(res => {
+    if (res.data.result.status === 1) {
+      if(window.type === 'add') {
+        alert('添加善款成功，id为' + window._this.fundAddId + '，请妥善保存')
+        window._this.findFundId = window._this.fundAddId
+      } else {
+        alert('更新善款成功')
+        window._this.findFunId = window._this.nowFundId
+        window._this.findFund()
       }
-    })
-    .catch(function (err) {
-      console.log(err);
-    });
+      window._this.uploading = false
+      clearInterval(window.intervalQuery)
+    }
+  })
 }
 
 function dealResult(resp, _this) {
